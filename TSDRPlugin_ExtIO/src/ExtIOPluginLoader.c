@@ -13,30 +13,54 @@
 #include "ExtIOPluginLoader.h"
 #include "TSDRCodes.h"
 
+#include <dlfcn.h>
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <stdbool.h>
 // A platform independent dynamic library loader
 
-void *extio_getfunction(extiosource_t * plugin, char *functname)
+/*void *extio_getfunction(extiosource_t * plugin, char *functname)
 {
-    return (void*)GetProcAddress(plugin->fd,functname);
-}
+    return (int (*)(int)) dlsym(plugin->handle, functname);
+	//return (void*)GetProcAddress(plugin->fd,functname);
+}*/
 
 void extio_close(extiosource_t * plugin)
 {
-	if (plugin->fd == NULL) return;
-    FreeLibrary(plugin->fd);
+	/*if (plugin->fd == NULL) return;
+    FreeLibrary(plugin->fd);*/
+	if(plugin->handle == NULL) return;
+	//TODO check if sucessfull etc..
+	dlclose(plugin->handle);
 }
 
 int extio_load(extiosource_t * plugin, const char *dlname)
 {
-	plugin->fd = LoadLibraryA(dlname);
-
-    if (plugin->fd == NULL)
-    	return TSDR_INCOMPATIBLE_PLUGIN;
-
-    // mandatory
+	//this is basically the fd 
+	plugin->handle=dlopen(dlname,RTLD_NOW|RTLD_GLOBAL); 
+    if (plugin->handle == NULL){
+		fprintf(stderr, "%s\n", dlerror());
+		return TSDR_INCOMPATIBLE_PLUGIN;
+	}
+	//TODO CHECK IF EVERYTHING IS PRESENT, and if mandatory stuff is present
+	//mandatory
+	plugin->InitHW= (bool (*)(char *, char *, int *))dlsym(plugin->handle, "InitHW"); 
+	plugin->OpenHW= (bool (*)(void))dlsym(plugin->handle, "OpenHW"); 
+	plugin->CloseHW= (void (*) (void)) dlsym(plugin->handle, "CloseHW");
+	plugin->StartHW= (int (*) (long))dlsym(plugin->handle, "StartHW");
+	plugin->StopHW= (void (*) (void)) dlsym(plugin->handle, "StopHW");
+	plugin->SetCallback= (void (*) (pfnExtIOCallback))dlsym(plugin->handle, "SetCallback");
+	plugin->SetHWLO= (int (*) (long))dlsym(plugin->handle, "SetHWLO");
+	plugin->GetStatus= (int (*) (void))dlsym(plugin->handle, "GetStatus");
+	// mandatory functions that rtlsdr expects
+	plugin->GetHWSR= (long (*) (void))dlsym(plugin->handle, "GetHWSR");
+	// completely optional functions
+	plugin->SetAttenuator= (int (*) (int))dlsym(plugin->handle, "SetAttenuator");
+	plugin->GetAttenuators=(int(*) (int, float *))dlsym(plugin->handle, "GetAttenuators");
+	plugin->ShowGUI= (int (*) (void))dlsym(plugin->handle, "ShowGUI");
+	plugin->HideGUI= (int (*) (void))dlsym(plugin->handle, "HideGUI");
+	// mandatory
+	/*
 	if ((plugin->InitHW = (bool(__stdcall *) (char *, char *, int *)) extio_getfunction(plugin, "InitHW")) == 0) return TSDR_ERR_PLUGIN;
 	if ((plugin->OpenHW = (bool(__stdcall *) (void)) extio_getfunction(plugin, "OpenHW")) == 0) return TSDR_ERR_PLUGIN;
 	if ((plugin->CloseHW = (void(__stdcall *) (void)) extio_getfunction(plugin, "CloseHW")) == 0) return TSDR_ERR_PLUGIN;
@@ -54,6 +78,6 @@ int extio_load(extiosource_t * plugin, const char *dlname)
 	if ((plugin->GetAttenuators = (int(__stdcall *) (int, float *)) extio_getfunction(plugin, "GetAttenuators")) == 0) plugin->GetAttenuators = NULL;
 	if ((plugin->ShowGUI = (int(__stdcall *) (void)) extio_getfunction(plugin, "ShowGUI")) == 0) plugin->ShowGUI = NULL;
 	if ((plugin->HideGUI = (int(__stdcall *) (void)) extio_getfunction(plugin, "HideGUI")) == 0) plugin->HideGUI = NULL;
-
+	*/
     return TSDR_OK;
 }

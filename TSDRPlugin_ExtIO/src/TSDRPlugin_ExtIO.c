@@ -13,13 +13,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
+#include <unistd.h>  
+#include <pthread.h>
 #include <setjmp.h>
+
 
 #include "TSDRCodes.h"
 #include "TSDRPlugin.h"
 #include "ExtIOPluginLoader.h"
-#include <windows.h>
+
+//#include <windows.h>
 
 #include "errors.h"
 
@@ -45,22 +48,23 @@ float act_gain = -1;
 
 int hwopen = 0;
 
-HANDLE guisyncevent;
+//HANDLE guisyncevent;
 jmp_buf exceptionenv;
 int errid = 0;
 // This is a hack for handling WindowsAPI exceptions, when an exception is caught, the PC is
 // transported back to where the setjump originally was and the call that causes  the exception
 // is not invoked again.
-LONG WINAPI exceptionhandler(struct _EXCEPTION_POINTERS *ExceptionInfo) {
+//TODO fetch the code from xertin the one that jumps upon exceptions
+/*LONG WINAPI exceptionhandler(struct _EXCEPTION_POINTERS *ExceptionInfo) {
 	UNREFERENCED_PARAMETER(ExceptionInfo);
 
 	errid++;
 	if (errid == 1) longjmp(exceptionenv, errid);
 
 	return EXCEPTION_CONTINUE_EXECUTION;
-}
+}*/
 
-void safecloseHw() {
+/*void safecloseHw() {
 	PVOID h = AddVectoredExceptionHandler(0, exceptionhandler);
 
 	errid = 0;
@@ -70,52 +74,52 @@ void safecloseHw() {
 	hwopen = 0;
 
 	RemoveVectoredExceptionHandler(h);
-}
+}*/
 
 void closeextio(void) {
 
 	if (source == NULL) return;
 
 	if (source->HideGUI != NULL) source->HideGUI();
-	if (hwopen) safecloseHw();
+	//if (hwopen) safecloseHw();
 	extio_close(source);
 	free(source);
 	source = NULL;
 }
 
-void TSDRPLUGIN_API __stdcall tsdrplugin_getName(char * name) {
+void tsdrplugin_getName(char * name) {
 	strcpy(name, "TSDR ExtIO Plugin");
 }
 
-uint32_t TSDRPLUGIN_API __stdcall tsdrplugin_setsamplerate(uint32_t rate) {
+uint32_t tsdrplugin_setsamplerate(uint32_t rate) {
 	if (source != NULL) return source->GetHWSR();
 	return 0;
 }
 
-uint32_t TSDRPLUGIN_API __stdcall tsdrplugin_getsamplerate() {
+uint32_t tsdrplugin_getsamplerate() {
 	if (source != NULL) return source->GetHWSR();
 	return 0;
 }
 
-int TSDRPLUGIN_API __stdcall tsdrplugin_setbasefreq(uint32_t freq) {
+int tsdrplugin_setbasefreq(uint32_t freq) {
 	req_freq = freq;
 
 	RETURN_OK();
 }
 
-int TSDRPLUGIN_API __stdcall tsdrplugin_stop(void) {
+int tsdrplugin_stop(void) {
 	is_running = 0;
 
 	RETURN_OK();
 }
 
-int TSDRPLUGIN_API __stdcall tsdrplugin_setgain(float gain) {
+int tsdrplugin_setgain(float gain) {
 	req_gain = gain;
 
 	RETURN_OK();
 }
 
-void TSDRPLUGIN_API callback(int cnt, int status, float IQoffs, void *IQdata) {
+void callback(int cnt, int status, float IQoffs, void *IQdata) {
 	if (!is_running) return;
 	if (status < 0 || cnt < 0)
 		return;
@@ -157,7 +161,8 @@ void TSDRPLUGIN_API callback(int cnt, int status, float IQoffs, void *IQdata) {
 	tsdr_cb(outbuf, samplespercallback, tsdr_ctx, 0);
 }
 
-DWORD WINAPI doGuiStuff(LPVOID arg) {
+//DWORD WINAPI doGuiStuff(LPVOID arg) {
+uint32_t doGuiStuff(void* arg) {
 	char * params = (char *)arg;
 
 	if (outbuf == NULL) {
@@ -220,15 +225,17 @@ DWORD WINAPI doGuiStuff(LPVOID arg) {
 		source = NULL;
 
 		if (status == TSDR_INCOMPATIBLE_PLUGIN)
-			announceexception("The ExtIO dll is not compatible with the current machine or does not exist. Please check the filename is correct and the file is a valid ExtIO dll file and try again.", TSDR_PLUGIN_PARAMETERS_WRONG);
+			announceexception("The ExtIO dinamic library is not compatible with the current machine or does not exist. Please check the filename is correct and the file is a valid ExtIO dinamic library and try again.", TSDR_PLUGIN_PARAMETERS_WRONG);
 		else
-			announceexception("The provided library is not a valid/compatible ExtIO dll. Please check the filename is correct and the file is a valid ExtIO dll file and try again.", TSDR_PLUGIN_PARAMETERS_WRONG);
+			announceexception("The provided library is not a valid/compatible ExtIO dinamic library. Please check the filename is correct and the file is a valid ExtIO dinamic library and try again.", TSDR_PLUGIN_PARAMETERS_WRONG);
 	}
 
 	// notify we have finished loading
-	SetEvent(guisyncevent);
+	//SetEvent(guisyncevent);
 
 	// do GUI handling
+	/*Get the message?*/
+	/*
 	MSG msg;
 	BOOL bRet;
 
@@ -246,23 +253,25 @@ DWORD WINAPI doGuiStuff(LPVOID arg) {
 			DispatchMessage(&msg);
 		}
 	}
-
+	*/
 	return 0;
 }
 
-int TSDRPLUGIN_API __stdcall tsdrplugin_init(const char * params) {
-	
+//int    tsdrplugin_init(const char * params) {
+int tsdrplugin_init(const char * params) {
 	// create synchronization event
-	guisyncevent = CreateEvent(0, FALSE, FALSE, 0);
-
+	//guisyncevent = CreateEvent(0, FALSE, FALSE, 0);
+	pthread_t thread_id;
+    
 	// do the initialization in a GUI friendly thread
-	CreateThread(NULL, 0, doGuiStuff, (LPVOID)params, 0, NULL);
-
+	pthread_create(&thread_id, NULL, doGuiStuff, params);
+	//CreateThread(NULL, 0, doGuiStuff, (LPVOID)params, 0, NULL);
+	pthread_join(thread_id, NULL);
 	// wait for initialization to finish
-	WaitForSingleObject(guisyncevent, INFINITE);
+	//WaitForSingleObject(guisyncevent, INFINITE);
 
 	// close synchronozation event
-	CloseHandle(guisyncevent);
+	//CloseHandle(guisyncevent);
 
 	// return whatever error code was generated during thread execution
 	return errormsg_code;
@@ -277,10 +286,10 @@ void attenuate(float gain) {
 	}
 }
 
-int TSDRPLUGIN_API __stdcall tsdrplugin_readasync(tsdrplugin_readasync_function cb, void *ctx) {
+int tsdrplugin_readasync(tsdrplugin_readasync_function cb, void *ctx) {
 
 	if (source == NULL)
-		RETURN_EXCEPTION("Please provide a full path to a valid ExtIO dll.", TSDR_PLUGIN_PARAMETERS_WRONG);
+		RETURN_EXCEPTION("Please provide a full path to a valid ExtIO dinamic library.", TSDR_PLUGIN_PARAMETERS_WRONG);
 
 	// start callbacks
 	tsdr_cb = cb;
@@ -323,7 +332,7 @@ int TSDRPLUGIN_API __stdcall tsdrplugin_readasync(tsdrplugin_readasync_function 
 	RETURN_OK();
 }
 
-void TSDRPLUGIN_API __stdcall tsdrplugin_cleanup(void) {
+void tsdrplugin_cleanup(void) {
 	if (outbuf != NULL) {
 		free(outbuf);
 		outbuf = NULL;
