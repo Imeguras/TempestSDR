@@ -35,6 +35,7 @@ extiosource_t * source = NULL;
 int hwtype;
 tsdrplugin_readasync_function tsdr_cb;
 void * tsdr_ctx;
+
 volatile int is_running = 0;
 int samplespercallback = 0;
 float * outbuf = NULL;
@@ -45,7 +46,6 @@ uint32_t req_freq = 100000000;
 uint32_t act_freq = -1;
 float req_gain = 0.5;
 float act_gain = -1;
-
 int hwopen = 0;
 
 //HANDLE guisyncevent;
@@ -54,7 +54,6 @@ int errid = 0;
 // This is a hack for handling WindowsAPI exceptions, when an exception is caught, the PC is
 // transported back to where the setjump originally was and the call that causes  the exception
 // is not invoked again.
-//TODO fetch the code from xertin the one that jumps upon exceptions
 /*LONG WINAPI exceptionhandler(struct _EXCEPTION_POINTERS *ExceptionInfo) {
 	UNREFERENCED_PARAMETER(ExceptionInfo);
 
@@ -63,7 +62,13 @@ int errid = 0;
 
 	return EXCEPTION_CONTINUE_EXECUTION;
 }*/
-
+//TODO check things
+void safecloseHw(){
+	
+	source->CloseHW();
+	hwopen = 0;
+	
+}
 /*void safecloseHw() {
 	PVOID h = AddVectoredExceptionHandler(0, exceptionhandler);
 
@@ -81,7 +86,7 @@ void closeextio(void) {
 	if (source == NULL) return;
 
 	if (source->HideGUI != NULL) source->HideGUI();
-	//if (hwopen) safecloseHw();
+	if (hwopen) safecloseHw();
 	extio_close(source);
 	free(source);
 	source = NULL;
@@ -187,7 +192,7 @@ uint32_t doGuiStuff(void* arg) {
 
 			if (hwopen) {
 				hwopen = 0;
-				safecloseHw();
+				safecloseHw(); 
 			}
 
 			if (hwtype != EXTIO_HWTYPE_16B && hwtype != EXTIO_HWTYPE_24B && hwtype != EXTIO_HWTYPE_32B && hwtype != EXTIO_HWTYPE_FLOAT) {
@@ -269,7 +274,7 @@ int tsdrplugin_init(const char * params) {
 	pthread_join(thread_id, NULL);
 	// wait for initialization to finish
 	//WaitForSingleObject(guisyncevent, INFINITE);
-
+	
 	// close synchronozation event
 	//CloseHandle(guisyncevent);
 
@@ -287,7 +292,6 @@ void attenuate(float gain) {
 }
 
 int tsdrplugin_readasync(tsdrplugin_readasync_function cb, void *ctx) {
-
 	if (source == NULL)
 		RETURN_EXCEPTION("Please provide a full path to a valid ExtIO dinamic library.", TSDR_PLUGIN_PARAMETERS_WRONG);
 
@@ -312,7 +316,7 @@ int tsdrplugin_readasync(tsdrplugin_readasync_function cb, void *ctx) {
 
 	act_gain = req_gain;
 	attenuate(act_gain);
-
+	//TODO yep this is dumb
 	while (is_running) {
 		Sleep(50);
 

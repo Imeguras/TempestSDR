@@ -42,9 +42,9 @@ import martin.tempest.gui.PlotVisualizer.TransformerAndCallback;
 import martin.tempest.sources.TSDRSource;
 import martin.tempest.sources.TSDRSource.ActionListenerRegistrator;
 import martin.tempest.sources.TSDRSource.TSDRSourceParamChangedListener;
-
+import martin.tempest.gui.PopularSets.PopularVideoMode;
 import javax.swing.JSlider;
-
+import java.util.concurrent.TimeUnit; 
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
@@ -64,6 +64,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.prefs.Preferences;
 
 import javax.swing.JPanel;
@@ -133,6 +134,10 @@ public class Main implements TSDRLibrary.FrameReadyCallback, TSDRLibrary.Incomin
 	private JToggleButton btnReset;
 	private JToggleButton tglbtnDmp;
 	private JToggleButton btnAutoResolution;
+	
+	private JToggleButton tglAutoPilot;
+	
+
 	private JLabel lblFrames;
 	private JSpinner spAreaAroundMouse;
 	private JOptionPane optpaneDevices;
@@ -199,6 +204,16 @@ public class Main implements TSDRLibrary.FrameReadyCallback, TSDRLibrary.Incomin
 		final double framerate_initial = prefs.getDouble(PREF_FRAMERATE, framerate);
 		final int closest_videomode_id = VideoMode.findClosestVideoModeId(width_initial, height_initial, framerate_initial, videomodes);
 		final boolean heightlock_enabled = prefs.getBoolean(PREF_HEIGHT_LOCK, true);
+		
+		PopularSets globalSet = new PopularSets("Global");
+		try {
+			globalSet.addMode(globalSet.new PopularVideoMode(VideoMode.getVideoMode("1920x1080 @ 60Hz", null, null, null), 2224));
+			globalSet.addMode(globalSet.new PopularVideoMode(VideoMode.getVideoMode("1920x1080 @ 75Hz", null, null, null), 2223));
+			globalSet.addMode(globalSet.new PopularVideoMode(VideoMode.getVideoMode("1440x900 @ 60Hz", null, null, null), 628));
+		} catch (Exception e) {
+			System.err.println("welp Resolution sets blow");
+			//TODO: handle exception
+		}
 		
 		frmTempestSdr = new JFrame();
 		frmTempestSdr.setFocusable(true);
@@ -401,6 +416,28 @@ public class Main implements TSDRLibrary.FrameReadyCallback, TSDRLibrary.Incomin
 		btnReset.setBounds(749, 417, 41, 22);
 		frmTempestSdr.getContentPane().add(btnReset);
 		
+		tglAutoPilot = new JToggleButton("APlt");
+		//TODO THREADING MAYBE 
+		tglAutoPilot.addActionListener(new ActionListener(){
+			public void actionPerformed(ActionEvent e) {
+				System.out.println(tglAutoPilot.isSelected());
+				if(tglAutoPilot.isSelected()==true){
+					//Thread overhead = 
+					CLOWN(globalSet);
+					//tglAutoPilot.setSelected(false);
+				//}else{
+				//	tglAutoPilot.setSelected(true);
+				} 
+					//mSdrlib.setParam(PARAM.AUTOCORR_PLOTS_RESET, 1);
+				
+			}
+		});
+
+		tglAutoPilot.setToolTipText("Activate Auto-Pilot");
+		tglAutoPilot.setMargin(new Insets(0, 0, 0, 0));
+		tglAutoPilot.setBounds(749, 523, 41, 22);
+		frmTempestSdr.getContentPane().add(tglAutoPilot);
+
 		cbVideoModes = new JComboBox();
 		cbVideoModes.setBounds(581, 70, 209, 22);
 		frmTempestSdr.getContentPane().add(cbVideoModes);
@@ -739,7 +776,31 @@ public class Main implements TSDRLibrary.FrameReadyCallback, TSDRLibrary.Incomin
 		if (video_mode_change_manually_triggered) return;
 		onResolutionChange(modeid);
 	}
-	
+	//TODO put a regular name
+	private void CLOWN (PopularSets lst){
+		Iterator<PopularVideoMode> iter = lst.getIterator();
+		while (iter.hasNext()) {
+			PopularVideoMode temp= iter.next();
+			VideoMode t=VideoMode.getVideoMode(temp.getName(), null, null, null);
+			System.out.println(t.name);
+			cbVideoModes.setSelectedItem(t);
+			System.out.println(cbVideoModes.getSelectedItem());
+			
+			frequency_spinner_model.setValue((long)temp.getFrequency(1));
+			//TODO NON HARD CODED
+			
+			File file = new File("/home/micron/"); 
+			try{
+				file.createNewFile(); 
+			}catch(Exception e){
+				System.err.println(e.getMessage());
+			}
+			
+			
+			visualizer.saveImageToPNGFile(file);
+			
+		}
+	}
 	private void setAreaAroundMouse() {
 		try {
 			final int area_around_mouse = (Integer) spAreaAroundMouse.getValue();

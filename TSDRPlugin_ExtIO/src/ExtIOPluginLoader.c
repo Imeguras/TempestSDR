@@ -37,6 +37,8 @@ void extio_close(extiosource_t * plugin)
 int extio_load(extiosource_t * plugin, const char *dlname)
 {
 	//this is basically the fd 
+	fprintf(stdout, "%s", dlname); 
+	
 	plugin->handle=dlopen(dlname,RTLD_NOW|RTLD_GLOBAL); 
     if (plugin->handle == NULL){
 		fprintf(stderr, "%s\n", dlerror());

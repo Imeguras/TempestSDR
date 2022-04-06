@@ -98,8 +98,12 @@ _OBJS = $(patsubst %,$(OBJFOLDER)/%,$(OBJS))
 _DEPS = $(patsubst %,$(SOURCEFOLDER)/%,$(DEPS))
 
 # OS specific flags
-# --add-stdcall-alias
-LDFLAGS+=-Wl
+ifeq ($(OSNAME),LINUX)
+	CFLAGS+=-fPIC
+else ifeq ($(OSNAME),WINDOWS)
+	LDFLAGS+=-Wl,--add-stdcall-alias
+	CFLAGS+=-fPIC
+endif
 
 # Generate the library
 all : $(OUTPUTFOLDER)/$(PLUGNAME)$(EXT)
